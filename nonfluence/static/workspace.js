@@ -1,7 +1,9 @@
 "use strict";
 
 const $ = (id) => document.getElementById(id);
-const routeId = location.pathname.split("/")[2];
+const workspacePath = document.body.dataset.workspacePath || "";
+const localPath = location.pathname.slice(workspacePath.length);
+const routeId = localPath.split("/")[2];
 const formatDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 const writable = document.body.dataset.write === "yes";
 let page = null;
@@ -26,7 +28,7 @@ function element(tag, text, className) {
 
 function pageLink(item, className) {
   const link = element("a", item.title, className);
-  link.href = "/pages/" + item.id;
+  link.href = workspacePath + "/pages/" + item.id;
   return link;
 }
 
@@ -37,7 +39,7 @@ function notice(message, error = false) {
 }
 
 async function api(path, { method = "GET", body, signal } = {}) {
-  const response = await fetch(path, {
+  const response = await fetch(workspacePath + path, {
     method, signal,
     headers: body === undefined ? {} : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -287,7 +289,7 @@ async function savePage(event) {
       body: fields,
     });
     dirty = false;
-    location.assign("/pages/" + saved.id);
+    location.assign(workspacePath + "/pages/" + saved.id);
   } catch (error) {
     notice(error.message, true);
     for (const control of controls) control.disabled = false;
@@ -347,7 +349,7 @@ async function initialize() {
     const initial = routeId || (pages.find((item) => !item.parent_id) || pages[0])?.id;
     if (initial) {
       page = await api("/api/pages/" + initial);
-      if (!routeId && location.pathname === "/") history.replaceState(null, "", "/pages/" + page.id);
+      if (!routeId && localPath === "/") history.replaceState(null, "", workspacePath + "/pages/" + page.id);
       if (!editing) showPage();
       if ($("search-input").value.trim()) void search();
       else pageTree();

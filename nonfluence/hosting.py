@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 from waitress import serve
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 from .storage import open_store
 from .web import create_app
@@ -18,6 +19,7 @@ def main():
     storage.add_argument("--db", type=Path)
     storage.add_argument("--mariadb-config", type=Path)
     parser.add_argument("--space", default="personal")
+    parser.add_argument("--plugins-mariadb-config", type=Path, help="mount the plugin company workspace")
     parser.add_argument("--socket", required=True, type=Path)
     login_mode = parser.add_mutually_exclusive_group(required=True)
     login_mode.add_argument("--confidential", action="store_true", help="require the owner to sign in through custom SSO")
@@ -67,9 +69,23 @@ def main():
         store = open_store(args.db, args.mariadb_config, args.space, write=True, classification=classification)
     except (OSError, ValueError) as error:
         parser.error(str(error))
+    if args.plugins_mariadb_config and (not browser_auth or args.space != "personal" or not args.mariadb_config):
+        parser.error("The plugin company workspace requires the hosted personal MariaDB workspace.")
+    prefix = "/plugins" if args.plugins_mariadb_config else ""
+    application = create_app(store, None, nira_hq=nira_hq, proxy_host=args.host, confidential_auth=auth,
+                             browser_auth=browser_auth, browser_identity=browser_identity, workspace_prefix=prefix)
+    if args.plugins_mariadb_config:
+        try:
+            plugins = open_store(None, args.plugins_mariadb_config, "plugins", write=True)
+        except (OSError, ValueError) as error:
+            parser.error(str(error))
+        if plugins.config["database"] == store.config["database"]:
+            parser.error("The plugin company workspace requires its own database.")
+        company = create_app(plugins, None, nira_hq=nira_hq, proxy_host=args.host, browser_auth=browser_auth,
+                             workspace_prefix=prefix, browser_session_store=store)
+        application = DispatcherMiddleware(application, {prefix: company})
     serve(
-        create_app(store, None, nira_hq=nira_hq, proxy_host=args.host, confidential_auth=auth,
-                   browser_auth=browser_auth, browser_identity=browser_identity),
+        application,
         unix_socket=str(args.socket), unix_socket_perms="660", url_scheme="https",
         threads=2, connection_limit=40, channel_timeout=20, max_request_body_size=1_250_000,
         expose_tracebacks=False,

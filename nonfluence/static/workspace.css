@@ -42,6 +42,10 @@ button:disabled { cursor: wait; opacity: .65; }
 .space-info { display: flex; align-items: center; gap: .65rem; margin: 0 .42rem 1.9rem; }
 .space-info strong { display: block; overflow-wrap: anywhere; text-transform: capitalize; }
 .space-icon { flex: none; background: var(--accent-soft); color: var(--accent); }
+.space-switcher { display: flex; flex-wrap: wrap; gap: .25rem; margin: -.7rem .4rem 1rem; }
+.space-switcher a { padding: .3rem .45rem; border-radius: 6px; color: var(--ink); font-size: .84rem; text-decoration: none; }
+.space-switcher a:hover, .space-switcher a[aria-current="page"] { background: var(--accent-soft); }
+.space-switcher a[aria-current="page"] { font-weight: 700; }
 .minor { color: var(--muted); font-size: .875rem; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: .35rem; padding-inline: .45rem; }
 .section-heading h2, .details h2, .editor-panes h2 { font-size: .95rem; margin: 0 0 .6rem; }
@@ -122,6 +126,7 @@ dialog::backdrop { background: #0b0b0b77; }
   .layout, .layout:has(#editor:not([hidden])) { display: block; }
   .sidebar { border-right: 0; border-bottom: 1px solid var(--line); padding: .7rem .8rem; }
   .space-info { display: none; }
+  .space-switcher { margin: 0 0 .55rem; }
   .sidebar nav { max-height: 32vh; overflow: auto; }
   main { padding: 1.25rem 1rem 2rem; }
   .details { padding: 1rem; }

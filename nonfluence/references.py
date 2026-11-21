@@ -87,7 +87,7 @@ def references(markdown):
     return list(found.values())
 
 
-def render(markdown, resolved=()):
+def render(markdown, resolved=(), *, page_prefix=""):
     env = {}
     tokens = MARKDOWN.parse(markdown, env)
     links = {(ref["kind"], ref["target_id"]): ref for ref in resolved}
@@ -111,6 +111,8 @@ def render(markdown, resolved=()):
             url = f"{NIRA_HQ_ROOT}/browse/{ref.kind.removeprefix('nira_hq_')}/{ref.target_id}"
         else:
             url = None
+        if ref.kind == "page" and url and url.startswith("/pages/"):
+            url = page_prefix + url
         if url:
             token.attrSet("href", url)
         else:

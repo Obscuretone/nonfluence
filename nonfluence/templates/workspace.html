@@ -9,9 +9,9 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css') }}">
   <script defer src="{{ url_for('static', filename='workspace.js') }}"></script>
 </head>
-<body data-space="{{ space }}" data-write="{{ 'yes' if writable else 'no' }}">
+<body data-space="{{ 'Plugin company' if workspace_prefix and request.script_root else space }}" data-workspace-path="{{ request.script_root }}" data-write="{{ 'yes' if writable else 'no' }}">
   <header class="masthead">
-    <a class="wordmark" href="/"><img class="brand-mark" src="{{ url_for('static', filename='obscuretone.svg') }}" width="34" height="34" alt="">Nonfluence</a>
+    <a class="wordmark" href="{{ url_for('workspace') }}"><img class="brand-mark" src="{{ url_for('static', filename='obscuretone.svg') }}" width="34" height="34" alt="">Nonfluence</a>
     <form id="search-form" role="search">
       <label class="sr-only" for="search-input">Search this space</label>
       <input id="search-input" type="search" placeholder="Search pages" maxlength="300" autocomplete="off">
@@ -33,8 +33,14 @@
     <aside class="sidebar">
       <div class="space-info">
         <span class="space-icon" aria-hidden="true">{{ space[0]|upper }}</span>
-        <div><span class="minor">Space</span><strong>{{ space }}</strong></div>
+        <div><span class="minor">Space</span><strong>{{ 'Plugin company' if workspace_prefix and request.script_root else space }}</strong></div>
       </div>
+      {% if workspace_prefix %}
+      <nav class="space-switcher" aria-label="Spaces">
+        <a href="/" {% if not request.script_root %}aria-current="page"{% endif %}>Personal</a>
+        <a href="{{ workspace_prefix }}/" {% if request.script_root %}aria-current="page"{% endif %}>Plugin company</a>
+      </nav>
+      {% endif %}
       <nav aria-labelledby="nav-title">
         <div class="section-heading">
           <h2 id="nav-title">Pages</h2>

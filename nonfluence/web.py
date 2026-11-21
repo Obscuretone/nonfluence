@@ -7,7 +7,10 @@ from .references import render, resolve
 from .store import Conflict, Invalid, Missing, page_fields
 
 
-def create_app(store, nira, *, nira_hq=None, proxy_host=None, confidential_auth=None, browser_auth=None, browser_identity=None):
+def create_app(
+    store, nira, *, nira_hq=None, proxy_host=None, confidential_auth=None,
+    browser_auth=None, browser_identity=None, workspace_prefix="", browser_session_store=None,
+):
     if proxy_host and confidential_auth is None and browser_auth is None:
         raise PermissionError("A hosted workspace requires an explicit authentication mode.")
     if (store.classification == "confidential") != (confidential_auth is not None):
@@ -18,6 +21,8 @@ def create_app(store, nira, *, nira_hq=None, proxy_host=None, confidential_auth=
         raise PermissionError("Browser password sign-in requires its own hosted workspace.")
     if browser_identity is not None and browser_auth is None:
         raise PermissionError("Browser passkey sign-in requires hosted browser sessions.")
+    if browser_session_store is not None and (not browser_auth or not workspace_prefix or browser_identity):
+        raise PermissionError("A mounted workspace requires the host's browser sessions.")
     app = Flask(__name__)
     app.config.update(
         MAX_CONTENT_LENGTH=1_250_000,
@@ -30,9 +35,13 @@ def create_app(store, nira, *, nira_hq=None, proxy_host=None, confidential_auth=
 
         protect_workspace(app, confidential_auth, proxy_host, store)
     if browser_auth is not None:
-        from .browser_login import protect_workspace
+        from .browser_login import protect_shared_workspace, protect_workspace
 
-        protect_workspace(app, browser_auth, store, identity=browser_identity, host=proxy_host)
+        if browser_session_store is None:
+            protect_workspace(app, browser_auth, store, identity=browser_identity, host=proxy_host,
+                              workspace_prefix=workspace_prefix)
+        else:
+            protect_shared_workspace(app, browser_auth, browser_session_store)
 
     @app.after_request
     def protect(response):
@@ -70,6 +79,7 @@ def create_app(store, nira, *, nira_hq=None, proxy_host=None, confidential_auth=
     def workspace(target=None):
         return render_template(
             "workspace.html", space=store.space, writable=store.write, classification=store.classification,
+            workspace_prefix=workspace_prefix,
         )
 
     @app.get("/api/pages")
@@ -84,7 +94,10 @@ def create_app(store, nira, *, nira_hq=None, proxy_host=None, confidential_auth=
     def page(target):
         result, rows = store.read(target)
         result["references"] = resolve(rows, nira, nira_hq)
-        result["html"] = render(result["markdown"], result["references"])
+        result["html"] = render(result["markdown"], result["references"], page_prefix=request.script_root)
+        for ref in result["references"]:
+            if ref["kind"] == "page" and (ref.get("url") or "").startswith("/pages/"):
+                ref["url"] = request.script_root + ref["url"]
         return jsonify(result)
 
     @app.get("/api/pages/<target>/history")
@@ -94,13 +107,13 @@ def create_app(store, nira, *, nira_hq=None, proxy_host=None, confidential_auth=
     @app.get("/api/pages/<target>/history/<int:revision>")
     def version(target, revision):
         result = store.revision(target, revision)
-        result["html"] = render(result["markdown"])
+        result["html"] = render(result["markdown"], page_prefix=request.script_root)
         return jsonify(result)
 
     @app.post("/api/preview")
     def preview():
         _, markdown = page_fields("Preview", payload().get("markdown"))
-        return jsonify(html=render(markdown))
+        return jsonify(html=render(markdown, page_prefix=request.script_root))
 
     @app.post("/api/pages")
     def create():

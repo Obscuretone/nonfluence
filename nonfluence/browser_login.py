@@ -8,6 +8,7 @@ import secrets
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlencode
 
 from flask import Blueprint, abort, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash
@@ -41,19 +42,28 @@ class PasswordLogin:
         return cls(**entry)
 
 
-def destination(path):
-    return path if path and PAGE_PATH.fullmatch(path) else "/"
+def destination(path, workspace_prefix=""):
+    if path and PAGE_PATH.fullmatch(path):
+        return path
+    if workspace_prefix and path and path.startswith(workspace_prefix):
+        nested = path[len(workspace_prefix):]
+        if nested == "/" or PAGE_PATH.fullmatch(nested):
+            return path
+    return "/"
 
 
 def valid_csrf(expected, provided):
     return bool(expected and provided and provided.isascii() and hmac.compare_digest(expected, provided))
 
 
-def protect_workspace(app, login, db_path, *, identity=None, host=None):
+def protect_workspace(app, login, db_path, *, identity=None, host=None, workspace_prefix=""):
     configure_cookie_state(app, "__Host-nonfluence-login", login.session_key, lifetime=600)
     app.config["MAX_FORM_MEMORY_SIZE"] = 16_384
     browser_sessions = BrowserSessions(db_path, login.session_key, MAX_AGE)
     routes = Blueprint("browser_login", __name__)
+
+    def next_page(target):
+        return destination(target, workspace_prefix)
 
     def complete_login(target, claims=None):
         duration = MAX_AGE if claims is None else min(PASSKEY_AGE, int(claims["exp"]) - int(time.time()))
@@ -70,7 +80,7 @@ def protect_workspace(app, login, db_path, *, identity=None, host=None):
     if identity:
         from .confidential import owner_oidc
 
-        app.register_blueprint(owner_oidc(app, identity, host, complete_login, destination, max_age=3600))
+        app.register_blueprint(owner_oidc(app, identity, host, complete_login, next_page, max_age=3600))
 
     def logout_token():
         return browser_sessions.logout_token(request.cookies.get(COOKIE, ""))
@@ -99,7 +109,7 @@ def protect_workspace(app, login, db_path, *, identity=None, host=None):
 
     @routes.route("/login", methods=["GET", "POST"], strict_slashes=False)
     def sign_in():
-        target = destination(request.values.get("next", ""))
+        target = next_page(request.values.get("next", ""))
         if browser_sessions.valid(login.username, request.cookies.get(COOKIE)):
             return redirect(target, code=303)
         token = session.get("login_csrf") or secrets.token_urlsafe(24)
@@ -135,3 +145,25 @@ def protect_workspace(app, login, db_path, *, identity=None, host=None):
         return response
 
     app.register_blueprint(routes)
+
+
+def protect_shared_workspace(app, login, session_store):
+    browser_sessions = BrowserSessions(session_store, login.session_key, MAX_AGE)
+
+    @app.before_request
+    def require_login():
+        if not request.is_secure:
+            abort(403)
+        if browser_sessions.valid(login.username, request.cookies.get(COOKIE)):
+            return
+        if request.endpoint == "workspace":
+            target = request.script_root + request.path
+            return redirect("/login?" + urlencode({"next": target}), code=303)
+        abort(401, "Sign in to Nonfluence.")
+
+    @app.context_processor
+    def logout_form_fields():
+        return {
+            "owner_logout_token": browser_sessions.logout_token(request.cookies.get(COOKIE, "")),
+            "sign_out_url": "/logout",
+        }

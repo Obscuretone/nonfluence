@@ -75,6 +75,8 @@ The owner's instance has a [browser sign-in page](https://docs.obscuretone.com/l
 
 The hosted site keeps pages, revisions, backlinks, search terms, request IDs and browser sessions in the `nonfluence` MariaDB database. The dedicated `nonfluence` system account connects through the local MariaDB Unix socket with privileges on that database. Use the `mariadb` dependency extra and the private configuration file that names the socket, database and account. The passkey drop-in adds `--browser-oidc` to the existing `--browser-login` command and uses the OpenID Connect client settings documented below with the main workspace's existing browser session key.
 
+On the personal hosted site, `--plugins-mariadb-config /path/to/company-database.json` adds a Plugin company entry to the sidebar space switcher. Supply a separate MariaDB database with the private workspace schema, using a local database account available to the hosted process. Both spaces use the site's owner sign-in. Page browsing, editing, and search use the selected space's database.
+
 On the VPS, the following command opens the deployed `personal` space through stdio. Run it in an authorized SSH session or pass it as the SSH remote command in the MCP client's configuration.
 
 ~~~sh
