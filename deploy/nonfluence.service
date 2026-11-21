@@ -1,0 +1,30 @@
+[Unit]
+Description=Nonfluence private knowledge base
+After=network.target
+
+[Service]
+Type=simple
+User=nonfluence
+Group=www-data
+WorkingDirectory=/srv/nonfluence/current
+Environment=PYTHONDONTWRITEBYTECODE=1
+LoadCredential=browser-login:/etc/nonfluence/browser-login
+ExecStart=/srv/nonfluence/venv/bin/python -m nonfluence.hosting --browser-login --host docs.obscuretone.com --mariadb-config /var/lib/nonfluence/mariadb.json --socket /run/nonfluence/web.sock
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RuntimeDirectory=nonfluence
+RuntimeDirectoryMode=0750
+ReadWritePaths=/var/lib/nonfluence
+MemoryHigh=64M
+MemoryMax=96M
+CPUQuota=25%
+TasksMax=12
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

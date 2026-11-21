@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nonfluence</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css') }}">
+  <script defer src="{{ url_for('static', filename='workspace.js') }}"></script>
+</head>
+<body data-space="{{ space }}" data-write="{{ 'yes' if writable else 'no' }}">
+  <header class="masthead">
+    <a class="wordmark" href="/"><img class="brand-mark" src="{{ url_for('static', filename='obscuretone.svg') }}" width="34" height="34" alt="">Nonfluence</a>
+    <form id="search-form" role="search">
+      <label class="sr-only" for="search-input">Search this space</label>
+      <input id="search-input" type="search" placeholder="Search pages" maxlength="300" autocomplete="off">
+      <kbd aria-hidden="true">/</kbd>
+    </form>
+    {% if sign_out_url %}
+    <div class="workspace-scope confidential-scope">
+      <span>{{ classification|capitalize }}</span>
+      <form method="post" action="{{ sign_out_url }}">
+        <input type="hidden" name="logout_token" value="{{ owner_logout_token }}">
+        <button type="submit" class="secondary compact">Sign out</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="workspace-scope">Private workspace</div>
+    {% endif %}
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="space-info">
+        <span class="space-icon" aria-hidden="true">{{ space[0]|upper }}</span>
+        <div><span class="minor">Space</span><strong>{{ space }}</strong></div>
+      </div>
+      <nav aria-labelledby="nav-title">
+        <div class="section-heading">
+          <h2 id="nav-title">Pages</h2>
+          {% if writable %}<button id="new-page" class="secondary compact" type="button">New page</button>{% endif %}
+        </div>
+        <p id="search-status" class="minor" role="status" hidden></p>
+        <div id="page-tree"></div>
+      </nav>
+    </aside>
+    <main id="main">
+      <p id="notice" role="status" hidden></p>
+      <section id="empty" hidden>
+        <h1>No pages yet</h1>
+        {% if writable %}<p>Use <strong>New page</strong> to start this space.</p>{% endif %}
+      </section>
+      <section class="document" id="reader" hidden>
+        <div class="document-top">
+          <nav class="breadcrumbs" aria-label="Page path" id="breadcrumbs"></nav>
+          <div class="actions">
+            <button class="secondary" type="button" id="history-button">History</button>
+            {% if writable %}<button class="primary" type="button" id="edit-page">Edit page</button>{% endif %}
+          </div>
+        </div>
+        <h1 id="page-title"></h1>
+        <div class="document-meta">
+          <span id="page-meta"></span>
+          <button class="text-button" type="button" id="copy-link">Copy Markdown link</button>
+        </div>
+        <article id="page-body" class="prose"></article>
+      </section>
+      {% if writable %}
+      <form id="editor" hidden>
+        <div class="document-top">
+          <h1 id="editor-heading">Edit page</h1>
+          <div class="actions">
+            <button class="secondary" type="button" id="cancel-edit">Cancel</button>
+            <button class="primary" type="submit" id="save-page">Save page</button>
+          </div>
+        </div>
+        <div class="editor-fields">
+          <label>Title<input id="editor-title" name="title" required maxlength="160"></label>
+          <label>Parent page<select id="editor-parent" name="parent_id"></select></label>
+        </div>
+        <div class="editor-panes">
+          <label>Markdown<textarea id="editor-source" name="markdown" maxlength="100000" rows="18" spellcheck="true"></textarea></label>
+          <section aria-labelledby="preview-title">
+            <h2 id="preview-title">Preview</h2>
+            <article id="preview-body" class="prose"></article>
+          </section>
+        </div>
+      </form>
+      {% endif %}
+    </main>
+    <aside class="details" id="details" hidden>
+      <section>
+        <h2>References</h2>
+        <div id="references"></div>
+      </section>
+      <section>
+        <h2>Backlinks</h2>
+        <div id="backlinks"></div>
+      </section>
+    </aside>
+  </div>
+  <dialog id="history-dialog" aria-labelledby="history-title">
+    <div class="document-top">
+      <h2 id="history-title">Page history</h2>
+      <form method="dialog"><button class="secondary" type="submit">Close</button></form>
+    </div>
+    <div id="history-list"></div>
+    <article id="history-preview" class="prose"></article>
+  </dialog>
+</body>
+</html>

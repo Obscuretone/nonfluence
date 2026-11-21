@@ -1,0 +1,41 @@
+:root {
+  color-scheme: dark;
+  font: 100%/1.5 system-ui, -apple-system, sans-serif;
+  color: #fafafa;
+  background: #0b0b0b;
+  --display: Baskerville, "Iowan Old Style", Georgia, serif;
+  --muted: #c0c0c0;
+  --border: #404040;
+}
+* { box-sizing: border-box; }
+body { min-height: 100vh; min-height: 100svh; margin: 0; }
+header { border-bottom: 1px solid var(--border); padding: 1.35rem clamp(1.25rem, 5vw, 4rem); }
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: .7rem;
+  color: inherit;
+  font-size: 1.15rem;
+  font-weight: 680;
+  letter-spacing: -.03em;
+  text-decoration: none;
+}
+.brand img { display: block; }
+main {
+  width: min(calc(100% - 2.5rem), 26rem);
+  margin-inline: auto;
+  padding: clamp(3rem, 13vh, 8rem) 0 3rem;
+}
+h1 { font: 400 clamp(3.2rem, 10vw, 5.5rem)/.98 var(--display); letter-spacing: -.05em; margin: 0 0 2.2rem; }
+form { display: grid; gap: .45rem; }
+label { color: var(--muted); font-size: .95rem; }
+input, button { width: 100%; border-radius: .45rem; padding: .68rem .8rem; font: inherit; }
+input { border: 1px solid #5b5b5b; margin: 0 0 .75rem; background: #141414; color: #fafafa; }
+button, .passkey { margin-top: .4rem; background: #fff; border: 1px solid #fff; color: #0b0b0b; font-weight: 700; cursor: pointer; }
+button:hover, .passkey:hover { background: #dedede; border-color: #dedede; }
+.passkey { display: block; border-radius: .45rem; padding: .68rem .8rem; text-align: center; text-decoration: none; }
+details { margin-top: 1.4rem; color: var(--muted); }
+summary { cursor: pointer; }
+details form { margin-top: 1rem; }
+:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+#sign-in-error { border-block: 1px solid #8c8c8c; margin: 0 0 1.15rem; padding: .65rem 0; }
