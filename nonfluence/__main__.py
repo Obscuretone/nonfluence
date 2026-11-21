@@ -70,8 +70,9 @@ def main():
     web = commands.add_parser("serve", help="start the local browser interface")
     web.add_argument("--port", type=int, default=8787)
     web.add_argument("--read-only", action="store_true")
-    mcp = commands.add_parser("mcp", help="start the stdio MCP server")
+    mcp = commands.add_parser("mcp", help="start the MCP server")
     mcp.add_argument("--write", action="store_true", help="enable write tools for the configured space")
+    mcp.add_argument("--unix-socket", type=Path, help="share a worker through a private Unix socket")
     commands.add_parser("seed", help="add example pages to a local database")
     args = parser.parse_args()
     if args.nira_web_url and not args.nira_db:
@@ -101,7 +102,15 @@ def main():
     else:
         from .mcp_server import make_server
 
-        make_server(store, nira, nira_hq=nira_hq).run(transport="stdio")
+        server = make_server(store, nira, nira_hq=nira_hq)
+        if args.unix_socket:
+            import asyncio
+
+            from .unix_mcp import serve_unix
+
+            asyncio.run(serve_unix(server, args.unix_socket))
+        else:
+            server.run(transport="stdio")
 
 
 if __name__ == "__main__":

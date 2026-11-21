@@ -53,6 +53,14 @@ The server uses the [official MCP Python SDK v1](https://github.com/modelcontext
 
 Updates use `expected_revision` from a preceding read. A concurrent edit returns a conflict. For a retried creation, reuse the same optional `request_id` UUID and matching inputs. Tool callers cannot supply a space override. The browser and MCP can use the same database and space, so a saved page is visible from either entry point.
 
+For the hosted personal workspace, `deploy/nonfluence-mcp.service` runs one MCP worker on a private Unix socket. The SSH client's remote command can attach that socket to its existing stdio transport.
+
+~~~sh
+sudo -n -u nonfluence /usr/bin/socat STDIO UNIX-CONNECT:/run/nonfluence-mcp/stdio.sock
+~~~
+
+The service account owns the socket and its parent directory. Each client has its own MCP session, with the space and permissions set by the worker's service configuration.
+
 ## Verify
 
 ~~~sh

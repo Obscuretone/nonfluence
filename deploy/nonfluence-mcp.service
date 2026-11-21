@@ -1,0 +1,27 @@
+[Unit]
+Description=Nonfluence private MCP connector
+After=mariadb.service
+
+[Service]
+Type=simple
+User=nonfluence
+Group=nonfluence
+WorkingDirectory=/srv/nonfluence/current
+Environment=PYTHONDONTWRITEBYTECODE=1
+RuntimeDirectory=nonfluence-mcp
+RuntimeDirectoryMode=0700
+UMask=0077
+ExecStartPre=/usr/bin/rm -f /run/nonfluence-mcp/stdio.sock
+ExecStart=/srv/nonfluence/venv/bin/python -m nonfluence --mariadb-config /var/lib/nonfluence/mariadb.json --space personal --nira-hq-token-file /var/lib/nonfluence/nira-hq-read.token mcp --write --unix-socket /run/nonfluence-mcp/stdio.sock
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+MemoryHigh=96M
+MemoryMax=160M
+TasksMax=16
+
+[Install]
+WantedBy=multi-user.target
