@@ -2,6 +2,10 @@
 
 Nonfluence is a local Markdown knowledge base with a browser editor and a scoped MCP server. Each page has a permanent UUID, searchable content, a parent, and a revision history. References and the full-text index update in the same transaction as each saved revision.
 
+![Nonfluence wiki page with a content tree, release handbook, references, and backlinks](docs/images/wiki-page.png)
+
+The screenshot shows a local demo with fictional pages and references. See how Nonfluence fits into the [self-hosted stack](https://obscuretone.com/posts/en/self_hosted_tools).
+
 ## Run the demo
 
 From this directory, with Python 3.11 or newer and [uv](https://docs.astral.sh/uv/):
@@ -12,7 +16,7 @@ uv run --locked python -m nonfluence seed
 uv run --locked python -m nonfluence --fixture-nira serve
 ~~~
 
-Open [Nonfluence on localhost](http://127.0.0.1:8787). The demo contains two nested pages, linked in both directions, plus illustrative ticket and pull request references. Use **Edit page** for Markdown and live preview, **History** to inspect earlier revisions, and the search field to find words in a title or body. **Copy Markdown link** gives you a stable internal link. For a blank workspace, skip the seed or choose another `--space` slug. Each local server instance opens one space.
+Open [Nonfluence on localhost](http://127.0.0.1:8787). The demo contains two nested pages, linked in both directions, plus illustrative ticket and pull request references. Use **Edit** for Markdown and live preview, and the search field to find words in a title or body. Open **More** for **Page history** and **Copy Markdown link**. For a blank workspace, skip the seed or choose another `--space` slug. Each local server instance opens one space.
 
 The default database is `.nonfluence/pages.sqlite3`. Put global flags such as `--db` and `--space` before the subcommand. Use an absolute database path when launching from different working directories.
 
