@@ -56,51 +56,74 @@ function pageTree(matches) {
     siblings.push(item);
     children.set(item.parent_id, siblings);
   }
+  const openPath = new Set(ancestors(page?.id).map((item) => item.id));
+
   function list(items, level) {
     const ul = element("ul", undefined, "tree");
     for (const item of items) {
       const li = element("li");
       const link = pageLink(item);
       if (page?.id === item.id) link.setAttribute("aria-current", "page");
-      li.append(link);
-      if (item.excerpt) li.append(element("small", item.excerpt));
-      if (!matches && children.has(item.id) && level < 8) {
-        li.append(list(children.get(item.id), level + 1));
-      } else if (!matches && children.has(item.id)) {
-        const deeper = [];
-        const pending = [...children.get(item.id)].reverse();
-        while (pending.length) {
-          const child = pending.pop();
-          deeper.push(child);
-          for (const nested of [...(children.get(child.id) || [])].reverse()) pending.push(nested);
-        }
-        const flat = element("ul", undefined, "tree");
-        for (const child of deeper) {
-          const childItem = element("li");
-          const childLink = pageLink(child);
-          if (page?.id === child.id) childLink.setAttribute("aria-current", "page");
-          childItem.append(childLink);
-          flat.append(childItem);
-        }
-        li.append(flat);
+      const row = element("div", undefined, "tree-row");
+      li.append(row);
+      if (matches) {
+        row.append(link);
+        if (item.excerpt) li.append(element("small", item.excerpt));
+        ul.append(li);
+        continue;
       }
+      const branch = children.get(item.id);
+      if (branch) {
+        const toggle = element("button", undefined, "tree-toggle");
+        toggle.type = "button";
+        toggle.setAttribute("aria-label", "Child pages of " + item.title);
+        toggle.setAttribute("aria-controls", "branch-" + item.id);
+        const nested = level < 8 ? list(branch, level + 1) : flatList(branch);
+        nested.id = "branch-" + item.id;
+        const setExpanded = (expanded) => {
+          toggle.setAttribute("aria-expanded", String(expanded));
+          nested.hidden = !expanded;
+        };
+        setExpanded(openPath.has(item.id));
+        toggle.addEventListener("click", () => setExpanded(nested.hidden));
+        row.append(toggle);
+        li.append(nested);
+      }
+      row.append(link);
       ul.append(li);
     }
     return ul;
   }
+
+  function flatList(items) {
+    const flat = element("ul", undefined, "tree");
+    const pending = [...items].reverse();
+    while (pending.length) {
+      const child = pending.pop();
+      const childItem = element("li");
+      const childLink = pageLink(child);
+      if (page?.id === child.id) childLink.setAttribute("aria-current", "page");
+      childItem.append(childLink);
+      flat.append(childItem);
+      for (const nested of [...(children.get(child.id) || [])].reverse()) pending.push(nested);
+    }
+    return flat;
+  }
+
   $("page-tree").replaceChildren(list(matches || children.get(null) || [], 1));
 }
 
 async function search() {
   searchRequest?.abort();
   const query = $("search-input").value.trim();
-  $("nav-title").textContent = query ? "Search results" : "Pages";
+  $("nav-title").textContent = query ? "Search results" : "Content";
   const status = $("search-status");
   status.hidden = !query;
   if (!query) {
     pageTree();
     return;
   }
+  setPagesOpen(true);
   const request = new AbortController();
   searchRequest = request;
   status.textContent = "Searching…";
@@ -166,7 +189,9 @@ function showPage() {
   $("page-meta").textContent = "Revision " + page.revision + " · " + formatDate.format(new Date(page.updated_at));
   $("page-body").innerHTML = page.html;
   const crumb = $("breadcrumbs");
-  crumb.replaceChildren(element("span", document.body.dataset.space));
+  const spaceHome = element("a", document.body.dataset.space);
+  spaceHome.href = workspacePath + "/";
+  crumb.replaceChildren(spaceHome);
   for (const parent of ancestors(page.parent_id)) {
     crumb.append(element("span", "/"), pageLink(parent));
   }
@@ -230,7 +255,7 @@ function queuePreview() {
   }, 180);
 }
 
-function startEditor(mode) {
+function startEditor(mode, parentId) {
   if (saving || (dirty && !window.confirm("Discard your unsaved changes?"))) return;
   editing = mode;
   dirty = false;
@@ -247,7 +272,7 @@ function startEditor(mode) {
       selector.add(new Option(path.map((entry) => entry.title).join(" / "), candidate.id));
     }
   }
-  selector.value = selected?.parent_id || "";
+  selector.value = selected?.parent_id ?? parentId ?? "";
   $("reader").hidden = true;
   $("empty").hidden = true;
   $("details").hidden = true;
@@ -314,20 +339,58 @@ document.addEventListener("keydown", (event) => {
     $("search-input").focus();
   }
 });
-$("history-button").addEventListener("click", showHistory);
+function setPagesOpen(open) {
+  $("toggle-pages").setAttribute("aria-expanded", String(open));
+  $("page-navigation").hidden = !open;
+}
+
+const smallScreen = matchMedia("(max-width: 620px)");
+setPagesOpen(!smallScreen.matches);
+smallScreen.addEventListener("change", ({ matches }) => setPagesOpen(!matches));
+$("toggle-pages").addEventListener("click", () => setPagesOpen($("page-navigation").hidden));
+
+function closeMenus(except) {
+  for (const menu of document.querySelectorAll("details[data-menu][open]")) {
+    if (menu !== except) menu.open = false;
+  }
+}
+
+document.addEventListener("click", (event) => closeMenus(event.target.closest("details[data-menu]")));
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  const menu = event.target.closest("details[data-menu][open]");
+  if (!menu) return;
+  menu.open = false;
+  menu.querySelector("summary").focus();
+});
+
+function runPageAction(action, restoreFocus = true) {
+  const menu = $("page-actions");
+  menu.open = false;
+  if (restoreFocus) menu.querySelector("summary").focus();
+  return action();
+}
+
+$("history-button").addEventListener("click", () => runPageAction(showHistory));
 $("history-dialog").addEventListener("close", () => historyRequest?.abort());
-$("copy-link").addEventListener("click", async () => {
+
+async function copyPageLink(markdown) {
+  const path = pageLink(page).href;
   const label = page.title.replaceAll("\\", "\\\\").replaceAll("[", "\\[").replaceAll("]", "\\]");
   try {
-    await navigator.clipboard.writeText("[" + label + "](page:" + page.id + ")");
-    notice("Markdown link copied.");
+    await navigator.clipboard.writeText(markdown ? "[" + label + "](page:" + page.id + ")" : path);
+    notice(markdown ? "Markdown link copied." : "Page link copied.");
   } catch {
-    notice("Clipboard unavailable. Page ID " + page.id, true);
+    notice("Clipboard unavailable. " + path, true);
   }
-});
+}
+
+$("copy-page-url").addEventListener("click", () => runPageAction(() => copyPageLink(false)));
+$("copy-link").addEventListener("click", () => runPageAction(() => copyPageLink(true)));
 
 if (writable) {
   $("new-page").addEventListener("click", () => startEditor("new"));
+  $("new-child").addEventListener("click", () => runPageAction(() => startEditor("new", page.id), false));
   $("edit-page").addEventListener("click", () => startEditor("edit"));
   $("cancel-edit").addEventListener("click", cancelEdit);
   $("editor").addEventListener("input", () => { dirty = true; });

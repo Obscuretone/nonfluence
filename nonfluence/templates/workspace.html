@@ -6,8 +6,8 @@
   <title>Nonfluence</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css') }}">
-  <script defer src="{{ url_for('static', filename='workspace.js') }}"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css', v='2') }}">
+  <script defer src="{{ url_for('static', filename='workspace.js', v='2') }}"></script>
 </head>
 <body data-space="{{ 'Plugin company' if workspace_prefix and request.script_root else space }}" data-workspace-path="{{ request.script_root }}" data-write="{{ 'yes' if writable else 'no' }}">
   <header class="masthead">
@@ -29,22 +29,32 @@
     <div class="workspace-scope">Private workspace</div>
     {% endif %}
   </header>
+  {% set space_name = ('Plugin company' if request.script_root else 'Personal') if workspace_prefix else space %}
   <div class="layout">
     <aside class="sidebar">
-      <div class="space-info">
-        <span class="space-icon" aria-hidden="true">{{ space[0]|upper }}</span>
-        <div><span class="minor">Space</span><strong>{{ 'Plugin company' if workspace_prefix and request.script_root else space }}</strong></div>
+      <div class="sidebar-tools">
+        {% if workspace_prefix %}
+        <details class="space-menu" data-menu>
+          <summary class="space-info" aria-label="Switch space, currently {{ space_name }}">
+            <span class="space-icon" aria-hidden="true">{{ space_name[0]|upper }}</span>
+            <strong>{{ space_name }}</strong><span class="menu-chevron" aria-hidden="true"></span>
+          </summary>
+          <nav class="space-switcher menu-panel" aria-label="Spaces">
+            <a href="/" {% if not request.script_root %}aria-current="page"{% endif %}>Personal</a>
+            <a href="{{ workspace_prefix }}/" {% if request.script_root %}aria-current="page"{% endif %}>Plugin company</a>
+          </nav>
+        </details>
+        {% else %}
+        <a class="space-info" href="{{ url_for('workspace') }}">
+          <span class="space-icon" aria-hidden="true">{{ space_name[0]|upper }}</span><strong>{{ space_name }}</strong>
+        </a>
+        {% endif %}
+        <button type="button" class="secondary compact" id="toggle-pages" aria-controls="page-navigation" aria-expanded="true">Pages</button>
       </div>
-      {% if workspace_prefix %}
-      <nav class="space-switcher" aria-label="Spaces">
-        <a href="/" {% if not request.script_root %}aria-current="page"{% endif %}>Personal</a>
-        <a href="{{ workspace_prefix }}/" {% if request.script_root %}aria-current="page"{% endif %}>Plugin company</a>
-      </nav>
-      {% endif %}
-      <nav aria-labelledby="nav-title">
+      <nav id="page-navigation" aria-labelledby="nav-title">
         <div class="section-heading">
-          <h2 id="nav-title">Pages</h2>
-          {% if writable %}<button id="new-page" class="secondary compact" type="button">New page</button>{% endif %}
+          <h2 id="nav-title">Content</h2>
+          {% if writable %}<button id="new-page" class="secondary compact" type="button">Create page</button>{% endif %}
         </div>
         <p id="search-status" class="minor" role="status" hidden></p>
         <div id="page-tree"></div>
@@ -54,20 +64,27 @@
       <p id="notice" role="status" hidden></p>
       <section id="empty" hidden>
         <h1>No pages yet</h1>
-        {% if writable %}<p>Use <strong>New page</strong> to start this space.</p>{% endif %}
+        {% if writable %}<p>Use <strong>Create page</strong> to start this space.</p>{% endif %}
       </section>
       <section class="document" id="reader" hidden>
         <div class="document-top">
           <nav class="breadcrumbs" aria-label="Page path" id="breadcrumbs"></nav>
           <div class="actions">
-            <button class="secondary" type="button" id="history-button">History</button>
-            {% if writable %}<button class="primary" type="button" id="edit-page">Edit page</button>{% endif %}
+            {% if writable %}<button class="primary" type="button" id="edit-page">Edit</button>{% endif %}
+            <details class="action-menu" id="page-actions" data-menu>
+              <summary class="secondary" aria-label="More actions">More <span class="menu-chevron" aria-hidden="true"></span></summary>
+              <div class="menu-panel">
+                {% if writable %}<button type="button" id="new-child">Create child page</button>{% endif %}
+                <button type="button" id="copy-page-url">Copy link</button>
+                <button type="button" id="copy-link">Copy Markdown link</button>
+                <button type="button" id="history-button">Page history</button>
+              </div>
+            </details>
           </div>
         </div>
         <h1 id="page-title"></h1>
         <div class="document-meta">
           <span id="page-meta"></span>
-          <button class="text-button" type="button" id="copy-link">Copy Markdown link</button>
         </div>
         <article id="page-body" class="prose"></article>
       </section>
