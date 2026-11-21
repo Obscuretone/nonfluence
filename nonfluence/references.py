@@ -2,7 +2,7 @@
 
 import re
 from dataclasses import dataclass
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from uuid import UUID
 
 from markdown_it import MarkdownIt
@@ -10,8 +10,7 @@ from markdown_it import MarkdownIt
 
 MARKDOWN = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
 NIRA_KEY = re.compile(r"(?:[A-Za-z][A-Za-z0-9_-]*-)?[1-9][0-9]{0,17}\Z")
-NIRA_HQ_ROOT = "https://tasks.obscuretone.com"
-NIRA_HQ_LINK = re.compile(re.escape(NIRA_HQ_ROOT) + r"/browse/(project|issue)/([0-9a-fA-F-]{36})\Z")
+NIRA_HQ_PATH = re.compile(r"/browse/(project|issue)/([0-9a-fA-F-]{36})\Z")
 GITHUB = re.compile(
     r"https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)"
     r"(?:(/issues/|/pull/)([1-9][0-9]*)|/commit/([0-9a-fA-F]{7,40}))?/?(?:#[^\s]*)?\Z"
@@ -29,7 +28,20 @@ def nira_key(value):
     return value.upper() if NIRA_KEY.fullmatch(value) else None
 
 
-def classify(href):
+def nira_hq_url(value):
+    if not value:
+        return None
+    url = value.rstrip("/")
+    parsed = urlsplit(url)
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+            or parsed.password is not None or parsed.query or parsed.fragment
+            or not re.fullmatch(r"(?:/[A-Za-z0-9_-]+)*", parsed.path)
+            or re.search(r"[\s\\]", url)):
+        raise ValueError("Configure the HTTPS Nira base URL, with an optional mount path.")
+    return url
+
+
+def classify(href, nira_url=None):
     if href.startswith(("page:", "/pages/")):
         _, _, target = href.partition(":" if href.startswith("page:") else "/pages/")
         try:
@@ -40,7 +52,7 @@ def classify(href):
         target = nira_key(href.removeprefix("nira:"))
         if target is not None:
             return Reference("nira", target)
-    hq = NIRA_HQ_LINK.fullmatch(href)
+    hq = NIRA_HQ_PATH.fullmatch(href.removeprefix(nira_url)) if nira_url and href.startswith(nira_url) else None
     if hq:
         kind, target = hq.groups()
         try:
@@ -78,22 +90,22 @@ def link_tokens(tokens):
                 yield token, "".join(label).strip()
 
 
-def references(markdown):
+def references(markdown, nira_url=None):
     found = {}
     for token, label in link_tokens(MARKDOWN.parse(markdown)):
-        ref = classify(token.attrGet("href") or "")
+        ref = classify(token.attrGet("href") or "", nira_url)
         if ref:
             found.setdefault((ref.kind, ref.target_id), Reference(ref.kind, ref.target_id, label))
     return list(found.values())
 
 
-def render(markdown, resolved=(), *, page_prefix=""):
+def render(markdown, resolved=(), *, page_prefix="", nira_url=None):
     env = {}
     tokens = MARKDOWN.parse(markdown, env)
     links = {(ref["kind"], ref["target_id"]): ref for ref in resolved}
     for token, _ in link_tokens(tokens):
         href = token.attrGet("href") or ""
-        ref = classify(href)
+        ref = classify(href, nira_url)
         if not ref:
             if href.startswith(("nira:", "page:")):
                 token.attrs.pop("href", None)
@@ -108,7 +120,7 @@ def render(markdown, resolved=(), *, page_prefix=""):
         elif ref.kind.startswith("github_"):
             url = f"https://github.com/{ref.target_id}"
         elif ref.kind.startswith("nira_hq_") and detail.get("state") != "broken":
-            url = f"{NIRA_HQ_ROOT}/browse/{ref.kind.removeprefix('nira_hq_')}/{ref.target_id}"
+            url = href
         else:
             url = None
         if ref.kind == "page" and url and url.startswith("/pages/"):
@@ -140,7 +152,7 @@ class FixtureNira:
         }
 
 
-def resolve(rows, nira=None, nira_hq=None):
+def resolve(rows, nira=None, nira_hq=None, *, nira_url=None):
     result = []
     nira_keys = {row["target_id"] for row in rows if row["kind"] == "nira"}
     tickets = nira.resolve_many(nira_keys) if nira and nira_keys else {}
@@ -158,8 +170,8 @@ def resolve(rows, nira=None, nira_hq=None):
             details = tickets.get(target, {"state": "unavailable", "provider": "nira"})
         elif kind.startswith("nira_hq_"):
             details = {"state": "unavailable", "provider": "nira-hq", **hq_details.get((kind, target), {})}
-            if details["state"] != "broken":
-                details["url"] = f"{NIRA_HQ_ROOT}/browse/{kind.removeprefix('nira_hq_')}/{target}"
+            if nira_url and details["state"] != "broken":
+                details["url"] = f"{nira_url}/browse/{kind.removeprefix('nira_hq_')}/{target}"
         else:
             details = {"state": "unverified", "url": f"https://github.com/{quote(target, safe='/')}"}
         result.append({

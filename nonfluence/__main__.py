@@ -1,12 +1,13 @@
 """Run the local browser, stdio MCP server, or fixture seed."""
 
 import argparse
+import os
 import sqlite3
 from pathlib import Path
 
 from .nira import ReadOnlyNira
 from .nira_hq import ReadOnlyNiraHQ
-from .references import FixtureNira
+from .references import FixtureNira, nira_hq_url
 from .storage import open_store
 
 
@@ -66,10 +67,13 @@ def main():
     nira_source.add_argument("--nira-db", type=Path, help="read an authorized standalone Nira v2 SQLite database")
     parser.add_argument("--nira-web-url", help="optional standalone Nira base URL for clickable ticket links")
     parser.add_argument("--nira-hq-token-file", type=Path, help="file holding an authorized Nira HQ read-only token")
+    parser.add_argument("--nira-hq-url", default=os.environ.get("NONFLUENCE_NIRA_HQ_URL"),
+                        help="HTTPS base URL for Nira HQ links and read access")
     commands = parser.add_subparsers(dest="command", required=True)
     web = commands.add_parser("serve", help="start the local browser interface")
     web.add_argument("--port", type=int, default=8787)
     web.add_argument("--read-only", action="store_true")
+    web.add_argument("--confluence-credentials", type=Path, help="private Confluence API token file")
     mcp = commands.add_parser("mcp", help="start the MCP server")
     mcp.add_argument("--write", action="store_true", help="enable write tools for the configured space")
     mcp.add_argument("--unix-socket", type=Path, help="share a worker through a private Unix socket")
@@ -88,9 +92,15 @@ def main():
         nira = FixtureNira() if args.fixture_nira else None
         if args.nira_db:
             nira = ReadOnlyNira(args.nira_db, args.nira_web_url)
-        nira_hq = ReadOnlyNiraHQ(args.nira_hq_token_file) if args.nira_hq_token_file else None
-        store = open_store(args.db, args.mariadb_config, args.space, write=write)
-    except (ValueError, OSError, sqlite3.Error) as error:
+        nira_url = nira_hq_url(args.nira_hq_url)
+        nira_hq = ReadOnlyNiraHQ(args.nira_hq_token_file, nira_url) if args.nira_hq_token_file else None
+        confluence_credentials = None
+        if args.command == "serve" and args.confluence_credentials:
+            from .confluence import ConfluenceCredentials
+
+            confluence_credentials = ConfluenceCredentials.from_file(args.confluence_credentials)
+        store = open_store(args.db, args.mariadb_config, args.space, write=write, nira_url=nira_url)
+    except (ValueError, OSError, TypeError, sqlite3.Error) as error:
         parser.error(str(error))
     if args.command == "seed":
         store.seed(DEMO)
@@ -98,7 +108,9 @@ def main():
     elif args.command == "serve":
         from .web import create_app
 
-        create_app(store, nira, nira_hq=nira_hq).run(host="127.0.0.1", port=args.port, threaded=False)
+        create_app(store, nira, nira_hq=nira_hq, confluence_credentials=confluence_credentials).run(
+            host="127.0.0.1", port=args.port, threaded=False,
+        )
     else:
         from .mcp_server import make_server
 

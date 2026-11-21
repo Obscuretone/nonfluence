@@ -60,11 +60,12 @@ class Database:
 
 
 class MariaStore(Store):
-    def __init__(self, config_path, space, *, write=False, classification="private"):
+    def __init__(self, config_path, space, *, write=False, classification="private", nira_url=None):
         validate_scope(space, classification)
         self.space = space
         self.write = write
         self.classification = classification
+        self.nira_url = nira_url
         self.config = json.loads(Path(config_path).read_text())
         if (
             not isinstance(self.config, dict)

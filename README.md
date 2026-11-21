@@ -44,6 +44,11 @@ uv run --locked python -m nonfluence \
 `--nira-web-url` is optional and only builds the ticket hyperlink. The adapter opens the database with SQLite `mode=ro` and `query_only`. With a live standalone database, the next request reads the latest committed title and status. For a snapshot while Nira is running, use SQLite’s backup API so committed WAL data is included. The browser and MCP each accept the same source flags.
 
 The SQLite adapter follows standalone Nira’s v2 schema. A hosted workspace can use its read-only Nira HQ connection for project and ticket metadata. The local demo also supports offline fixtures.
+Set `NONFLUENCE_NIRA_HQ_URL` to the Nira instance’s HTTPS base URL, including
+its mount path if applicable. Set it for both the web service and MCP launcher.
+For live metadata, configure the read-only token via `--nira-hq-token-file`
+for CLI launches or `NONFLUENCE_NIRA_HQ_TOKEN_FILE` for the hosted web service.
+Standalone Markdown and page linking work without the integration.
 
 ## MCP connection
 
@@ -68,10 +73,39 @@ The service account owns the socket and its parent directory. Each client has it
 ## Verify
 
 ~~~sh
-uv run --locked python -m unittest discover -s tests -v
+uv run --locked --with pytest python -m pytest -q
 ~~~
 
 The tests exercise actual stdio MCP connections with read and write scopes, concurrent saves and retries, stable links through renames and moves, backlinks, HTML handling, search, the local browser API, and a committed Nira status change in a disposable database.
+
+## Standalone owner signup
+
+Run the hosted entry point behind TLS with `--browser-login`,
+`--owner-setup /private/setup-token`, and `--owner-credentials /private/browser-login.json`.
+Create the setup token with `openssl rand -hex 32` and restrict that file and its
+directory to the service account. Start with a credential path that does not
+exist. Follow the sign-in page to create the workspace owner by email and
+password, using the one-time setup token. Remove `--owner-setup` after
+registration. Keep the credential file and database private and retain
+`--owner-credentials` for subsequent sign-ins.
+
+## Confluence Cloud REST API
+
+Pass `--confluence-credentials /private/confluence.json` to the hosted entry
+point (or local `serve` command) to expose the published-page API for the
+configured space. The private JSON file contains `email`, `token` (use at
+least 32 random characters), and a boolean `write`. Clients use Basic auth
+with the configured email and token.
+
+- Use `/wiki/api/v2/spaces`, `/wiki/api/v2/pages`, and
+  `/wiki/api/v2/pages/{id}/versions` for space discovery, published page reads,
+  creation, updates and history. Update with the next version number.
+- Use `/wiki/rest/api/search` with `type=page` and an optional
+  `title ~ "phrase"` or `text ~ "phrase"` clause. Full-text search returns
+  the first 50 matches from the workspace index.
+- Use the `storage` body representation with paragraphs, headings, lists,
+  inline emphasis, links and line breaks. The adapter maps numeric API page IDs
+  to the existing stable wiki page IDs.
 
 ## Hosted instance
 

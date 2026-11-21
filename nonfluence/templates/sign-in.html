@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sign in · Nonfluence</title>
+  <title>{{ "Create the owner account" if signup else "Sign in" }} · Nonfluence</title>
   <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='apple-touch-icon.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='sign-in.css') }}">
@@ -16,21 +16,31 @@
     </a>
   </header>
   <main>
-    <h1>Sign in</h1>
+    <h1>{{ "Create the owner account" if signup else "Sign in" }}</h1>
     {% if passkey_url %}
     <a class="passkey" href="{{ passkey_url }}">Sign in with a passkey</a>
     <details{% if error %} open{% endif %}>
       <summary>Use password</summary>
     {% endif %}
     {% if error %}<p id="sign-in-error" role="alert">{{ error }}</p>{% endif %}
-    <form method="post" action="{{ url_for('browser_login.sign_in') }}">
+    <form method="post" action="{{ url_for('browser_login.sign_up' if signup else 'browser_login.sign_in') }}">
       <input type="hidden" name="csrf" value="{{ csrf }}">
       <input type="hidden" name="next" value="{{ next_path }}">
-      <label for="username">Username</label>
-      <input id="username" name="username" autocomplete="username" maxlength="160" required autofocus>
+      {% if signup %}
+      <label for="email">Email</label>
+      <input id="email" type="email" name="email" autocomplete="username" maxlength="254" required autofocus>
+      <label for="password">Password</label>
+      <input id="password" type="password" name="password" autocomplete="new-password" minlength="15" maxlength="128" required>
+      <label for="setup_token">Setup token</label>
+      <input id="setup_token" type="password" name="setup_token" autocomplete="off" maxlength="128" required>
+      {% else %}
+      <label for="username">{{ "Email" if email_login else "Username" }}</label>
+      <input id="username" name="username" type="{{ 'email' if email_login else 'text' }}"
+        autocomplete="username" maxlength="{{ 254 if email_login else 160 }}" required autofocus>
       <label for="password">Password</label>
       <input id="password" type="password" name="password" autocomplete="current-password" maxlength="512" required>
-      <button type="submit">Sign in</button>
+      {% endif %}
+      <button type="submit">{{ "Create account" if signup else "Sign in" }}</button>
     </form>
     {% if passkey_url %}</details>{% endif %}
   </main>

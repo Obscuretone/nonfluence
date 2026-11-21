@@ -9,7 +9,7 @@ from urllib.parse import quote
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 from uuid import UUID
 
-from .references import NIRA_HQ_ROOT
+from .references import nira_hq_url
 from .store import Invalid, Missing
 
 
@@ -19,7 +19,10 @@ class DenyRedirects(HTTPRedirectHandler):
 
 
 class ReadOnlyNiraHQ:
-    def __init__(self, credential_path):
+    def __init__(self, credential_path, base_url):
+        self.base_url = nira_hq_url(base_url)
+        if not self.base_url:
+            raise ValueError("Nira HQ resolution requires a configured base URL.")
         token = Path(credential_path).read_text().strip()
         if not re.fullmatch(r'nira_[A-Za-z0-9_-]{20,160}', token):
             raise ValueError('Invalid Nira HQ read credential.')
@@ -34,7 +37,7 @@ class ReadOnlyNiraHQ:
             pattern = r'[A-Z][A-Z0-9_]{1,15}' + (r'-[1-9][0-9]{0,17}' if kind == 'issues' else '')
             if not re.fullmatch(pattern, ref):
                 raise Invalid('Use a Nira key or stable UUID.') from None
-        request = Request(f'{NIRA_HQ_ROOT}/api/{kind}/{quote(ref, safe="")}', headers=self._headers)
+        request = Request(f'{self.base_url}/api/{kind}/{quote(ref, safe="")}', headers=self._headers)
         try:
             with self._opener.open(request, timeout=3) as response:
                 record = json.load(response)

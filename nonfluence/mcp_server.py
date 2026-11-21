@@ -32,12 +32,12 @@ def make_server(store, nira, *, nira_hq=None):
     def read_page(id: str) -> dict[str, Any]:
         """Read a UUID-addressed page, including Markdown, typed references, and backlinks."""
         page, refs = store.read(id)
-        return {**page, "references": resolve(refs, nira, nira_hq)}
+        return {**page, "references": resolve(refs, nira, nira_hq, nira_url=store.nira_url)}
 
     @mcp.tool(annotations=read_only, structured_output=True)
     def find_backlinks(reference: str, limit: int = 20) -> dict[str, Any]:
         """List pages linking to a Nonfluence page, standalone Nira ticket, Nira HQ permalink, or GitHub URL."""
-        ref = classify(reference)
+        ref = classify(reference, store.nira_url)
         if ref is None:
             raise Invalid("Use page:<UUID>, nira:<ticket ID or key>, a Nira HQ permalink, or a GitHub URL.")
         if not 1 <= limit <= 50:

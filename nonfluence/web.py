@@ -9,9 +9,13 @@ from .store import Conflict, Invalid, Missing, page_fields
 
 def create_app(
     store, nira, *, nira_hq=None, proxy_host=None, confidential_auth=None,
-    browser_auth=None, browser_identity=None, workspace_prefix="", browser_session_store=None,
+    browser_auth=None, browser_identity=None, workspace_prefix="", browser_session_store=None, browser_signup=None, confluence_credentials=None,
 ):
-    if proxy_host and confidential_auth is None and browser_auth is None:
+    if browser_signup is not None and (
+        not proxy_host or any((confidential_auth, browser_auth, browser_identity, browser_session_store, workspace_prefix))
+    ):
+        raise PermissionError("Owner signup requires a standalone hosted workspace.")
+    if proxy_host and confidential_auth is None and browser_auth is None and browser_signup is None:
         raise PermissionError("A hosted workspace requires an explicit authentication mode.")
     if (store.classification == "confidential") != (confidential_auth is not None):
         raise PermissionError("A confidential database requires owner sign-in on a separate origin.")
@@ -23,6 +27,8 @@ def create_app(
         raise PermissionError("Browser passkey sign-in requires hosted browser sessions.")
     if browser_session_store is not None and (not browser_auth or not workspace_prefix or browser_identity):
         raise PermissionError("A mounted workspace requires the host's browser sessions.")
+    if confluence_credentials is not None and confidential_auth is not None:
+        raise PermissionError("Confluence API credentials cannot open a confidential workspace.")
     app = Flask(__name__)
     app.config.update(
         MAX_CONTENT_LENGTH=1_250_000,
@@ -34,14 +40,19 @@ def create_app(
         from .confidential import protect_workspace
 
         protect_workspace(app, confidential_auth, proxy_host, store)
-    if browser_auth is not None:
+    if browser_auth is not None or browser_signup is not None:
         from .browser_login import protect_shared_workspace, protect_workspace
 
         if browser_session_store is None:
             protect_workspace(app, browser_auth, store, identity=browser_identity, host=proxy_host,
-                              workspace_prefix=workspace_prefix)
+                              workspace_prefix=workspace_prefix, signup=browser_signup)
         else:
             protect_shared_workspace(app, browser_auth, browser_session_store)
+
+    if confluence_credentials is not None:
+        from .confluence import register_confluence
+
+        register_confluence(app, store, confluence_credentials)
 
     @app.after_request
     def protect(response):
@@ -93,8 +104,8 @@ def create_app(
     @app.get("/api/pages/<target>")
     def page(target):
         result, rows = store.read(target)
-        result["references"] = resolve(rows, nira, nira_hq)
-        result["html"] = render(result["markdown"], result["references"], page_prefix=request.script_root)
+        result["references"] = resolve(rows, nira, nira_hq, nira_url=store.nira_url)
+        result["html"] = render(result["markdown"], result["references"], page_prefix=request.script_root, nira_url=store.nira_url)
         for ref in result["references"]:
             if ref["kind"] == "page" and (ref.get("url") or "").startswith("/pages/"):
                 ref["url"] = request.script_root + ref["url"]
@@ -107,13 +118,13 @@ def create_app(
     @app.get("/api/pages/<target>/history/<int:revision>")
     def version(target, revision):
         result = store.revision(target, revision)
-        result["html"] = render(result["markdown"], page_prefix=request.script_root)
+        result["html"] = render(result["markdown"], page_prefix=request.script_root, nira_url=store.nira_url)
         return jsonify(result)
 
     @app.post("/api/preview")
     def preview():
         _, markdown = page_fields("Preview", payload().get("markdown"))
-        return jsonify(html=render(markdown, page_prefix=request.script_root))
+        return jsonify(html=render(markdown, page_prefix=request.script_root, nira_url=store.nira_url))
 
     @app.post("/api/pages")
     def create():

@@ -110,12 +110,13 @@ DATABASE_IDS = {"private": 1313231702, "confidential": 0x4E46434F}
 
 
 class Store:
-    def __init__(self, path, space, *, write=False, classification="private"):
+    def __init__(self, path, space, *, write=False, classification="private", nira_url=None):
         validate_scope(space, classification)
         self.path = Path(path).expanduser().resolve()
         self.space = space
         self.write = write
         self.classification = classification
+        self.nira_url = nira_url
         application_id = DATABASE_IDS[classification]
         if write:
             self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -272,7 +273,7 @@ class Store:
             """,
             (target, self.space, title, markdown, parent, timestamp()),
         )
-        self._index(db, target, references(markdown))
+        self._index(db, target, references(markdown, self.nira_url))
         return dict(self._get(db, target))
 
     def create(self, title, markdown, parent=None, request_id=None):
@@ -317,7 +318,7 @@ class Store:
                 """,
                 (title, markdown, parent, timestamp(), target, self.space),
             )
-            self._index(db, target, references(markdown))
+            self._index(db, target, references(markdown, self.nira_url))
             return dict(self._get(db, target))
 
     def seed(self, entries):
